@@ -12,6 +12,8 @@ parser.add_argument('-l', '--list-activity', action = 'store_true',
                     help = 'print a list of user activity')
 parser.add_argument('-r', '--remove-users', action = 'store_true', 
                     help = 'remove all inactive users from all public channels')
+parser.add_argument('-g', '--include-groups', action = 'store_true',
+                    help = 'include private groups')
 args = parser.parse_args()
 
 if not slack_token:
@@ -29,6 +31,11 @@ users = response.body['members']
 response = slack.channels.list()
 channels = response.body['channels']
 
+if args.include_groups:
+    response = slack.groups.list()
+    groups = response.body['groups']
+    channels = channels + groups
+
 user_report = {}
 for user in users:
     if user['is_bot']:
@@ -39,8 +46,16 @@ for user in users:
                                 'time': 0 }
     
 for channel in channels:
-    response = slack.channels.history(channel['id'])
+    if channel['is_archived']:
+        continue
+
+    if channel['id'].startswith("G"):
+        response = slack.groups.history(channel['id'])
+    else:
+        response = slack.channels.history(channel['id'])
+
     messages = response.body['messages']
+
     for message in messages:
         if message['type'] == "message" and not "subtype" in message:
             if float(message['ts']) > float(user_report[message['user']]['time']):
