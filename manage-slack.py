@@ -56,6 +56,11 @@ for channel in channels:
 
     messages = response.body['messages']
 
+    while response.body['has_more']:
+        print("Retrieving more messages for {}...".format(channel['id']))
+        response = slack.channels.history(channel=channel['id'], oldest=messages[99]['ts'])
+        messages = messages + response.body['messages']
+
     for message in messages:
         if message['type'] == "message" and not "subtype" in message:
             if float(message['ts']) > float(user_report[message['user']]['time']):
