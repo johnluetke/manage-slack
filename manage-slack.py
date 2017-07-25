@@ -3,9 +3,11 @@
 import slacker
 import argparse
 import datetime
+import sys
 
 # Needs to be an admin user token, bot doesn't work
 slack_token = ""
+idle_channel = ""
 
 parser = argparse.ArgumentParser(description = 'Manage Slack user activity')
 parser.add_argument('-l', '--list-activity', action = 'store_true', 
@@ -58,7 +60,10 @@ for channel in channels:
 
     while response.body['has_more']:
         print("Retrieving more messages for {}...".format(channel['id']))
-        response = slack.channels.history(channel=channel['id'], oldest=messages[99]['ts'])
+        if channel['id'].startswith("G"):
+            response = slack.groups.history(channel=channel['id'], oldest=messages[99]['ts'])
+        else:
+            response = slack.channels.history(channel=channel['id'], oldest=messages[99]['ts'])
         messages = messages + response.body['messages']
 
     for message in messages:
@@ -78,10 +83,23 @@ if args.list_activity:
 # Removal, -r
 if args.remove_users:
     for channel in channels:
-        channel_id = slack.channels.get_channel_id(channel)
+        if channel['id'] == idle_channel:
+            continue
+
+        if channel['is_archived']:
+            continue
+
+        channel_id = channel['id'] #slack.channels.get_channel_id(channel)
         for uid, data in user_report.items():
+            user_id = uid
             if data['time'] == 0:
+                print("Removing {} from {}...".format(user_id, channel_id))
                 try:
-                    slack.channels.kick(channel=channel_id,user=user_id)
-                except not_in_channel:
-                    pass
+                    slack.channels.kick(channel=channel_id, user=user_id)
+                    slack.channels.invite(channel=idle_channel, user=user_id)
+                except Exception as e:
+                    if e == "not_in_channel":
+                        pass
+                    else:
+                        print("...FAILED")
+                        print(e)
